@@ -1,9 +1,19 @@
 import { Address, beginCell, Cell, Contract, contractAddress, ContractProvider, Sender, SendMode } from '@ton/core';
 
-export type MasterContractConfig = {};
+export type MasterContractConfig = {
+    total_supply: number,
+    admin: Address,
+    content: Cell,
+    jetton_wallet: Cell
+};
 
 export function masterContractConfigToCell(config: MasterContractConfig): Cell {
-    return beginCell().endCell();
+    return beginCell()
+        .storeCoins(config.total_supply)
+        .storeAddress(config.admin)
+        .storeRef(config.content)
+        .storeRef(config.jetton_wallet)
+        .endCell();
 }
 
 export class MasterContract implements Contract {
