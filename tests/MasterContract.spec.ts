@@ -63,8 +63,16 @@ describe('MasterContract', () => {
         expect(jetton_data).toHaveProperty("mintable", false);
         expect(jetton_data.adminAddress).toEqualAddress(deployer.address);
         expect(jetton_data.content).toEqualCell(masterContractContent);
-        console.log("content", jetton_data.content);
+        // console.log("content", jetton_data.content);
         expect(jetton_data.walletCode).toEqualCell(jettonWalletCode);
+    });
+
+    it('should allow to change admin address', async () => {
+        const new_owner = await blockchain.treasury('new_owner');
+        const result = await masterContract.sendChangeAdmin(deployer.getSender(), new_owner.address);
+        const jetton_data = await masterContract.getJettonData();
+        expect(jetton_data.adminAddress).toEqualAddress(new_owner.address);
+        console.log('result', result)
     });
 
 });
