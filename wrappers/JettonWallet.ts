@@ -80,5 +80,24 @@ export class JettonWallet implements Contract {
             .endCell(),
         });
     }    
+    // GETTERS
+    async getJettoWalletData(provider: ContractProvider) {
+        let res = await provider.get('get_wallet_data', []);
+        return {
+            jetton_balance: res.stack.readBigNumber(),
+            owner_address: res.stack.readAddress(),
+            minter_address: res.stack.readAddress(),
+            jwallet_code: res.stack.readCell()
+        }
+    }
+
+    async getJettonBalance(provider: ContractProvider) {
+        let state = await provider.getState();
+        if (state.state.type !== 'active') {
+            return 0n;
+        }
+        let res = await provider.get('get_wallet_data', []);
+        return res.stack.readBigNumber();
+    }
 
 }
