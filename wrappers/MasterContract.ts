@@ -3,6 +3,7 @@ import { Op } from './JettonConstants';
 
 export type MasterContractConfig = {
     total_supply: number,
+    mintable: number,
     admin: Address,
     content: Cell,
     jetton_wallet: Cell
@@ -11,6 +12,7 @@ export type MasterContractConfig = {
 export function masterContractConfigToCell(config: MasterContractConfig): Cell {
     return beginCell()
         .storeCoins(config.total_supply)
+        .storeInt(config.mintable, 32)
         .storeAddress(config.admin)
         .storeRef(config.content)
         .storeRef(config.jetton_wallet)
@@ -35,6 +37,38 @@ export class MasterContract implements Contract {
             value,
             sendMode: SendMode.PAY_GAS_SEPARATELY,
             body: beginCell().endCell(),
+        });
+    }
+
+    async sendMint(provider: ContractProvider, via: Sender, 
+        opts: {
+            toAddress: Address;
+            jettonAmount: bigint;
+            amount: bigint;
+            queryId: number;
+            value: bigint;
+        }
+    ) {
+        await provider.internal(via, {
+            value: opts.value,
+            sendMode: SendMode.PAY_GAS_SEPARATELY,
+            body: beginCell()
+                .storeUint(21, 32)
+                .storeUint(opts.queryId, 64)
+                .storeAddress(opts.toAddress)
+                .storeCoins(opts.amount)
+                .storeRef(
+                    beginCell()
+                        .storeUint(0x178d4519, 32)
+                        .storeUint(opts.queryId, 64)
+                        .storeCoins(opts.jettonAmount)
+                        .storeAddress(this.address)
+                        .storeAddress(this.address)
+                        .storeCoins(0)
+                        .storeUint(0, 1)
+                    .endCell()
+                )
+            .endCell(),
         });
     }
 
@@ -73,5 +107,10 @@ export class MasterContract implements Contract {
             content,
             walletCode
         };
+    }
+
+    async getJettonBalance(provider: ContractProvider): Promise<bigint> {
+        const res = await provider.get('get_jetton_data', []);
+        return res.stack.readBigNumber();
     }
 }
