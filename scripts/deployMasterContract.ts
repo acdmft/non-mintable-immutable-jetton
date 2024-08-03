@@ -8,6 +8,7 @@ export async function run(provider: NetworkProvider) {
 
     const masterContract = provider.open(MasterContract.createFromConfig({
         total_supply: 888,
+        mintable: -1,
         admin: provider.sender().address!!,
         content: buildMasterContentCell({
             name: "Flying fox coin",
