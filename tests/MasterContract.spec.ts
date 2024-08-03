@@ -38,7 +38,8 @@ describe('MasterContract', () => {
         // const deployer = await blockchain.treasury('deployer');
 
         masterContract = blockchain.openContract(MasterContract.createFromConfig({
-            total_supply: 888,
+            total_supply: parseInt(process.env.JETTON_SUPPLY!),
+            mintable: -1,
             admin: deployer.address!,
             content: masterContractContent,
             jetton_wallet: jettonWalletCode 
@@ -60,7 +61,7 @@ describe('MasterContract', () => {
         // blockchain and masterContract are ready to use
         const jetton_data = await masterContract.getJettonData();
         expect(jetton_data).toHaveProperty("totalSupply", BigInt(parseInt(process.env.JETTON_SUPPLY!)));
-        expect(jetton_data).toHaveProperty("mintable", false);
+        expect(jetton_data).toHaveProperty("mintable", true);
         expect(jetton_data.adminAddress).toEqualAddress(deployer.address);
         expect(jetton_data.content).toEqualCell(masterContractContent);
         // console.log("content", jetton_data.content);
@@ -72,7 +73,57 @@ describe('MasterContract', () => {
         const result = await masterContract.sendChangeAdmin(deployer.getSender(), new_owner.address);
         const jetton_data = await masterContract.getJettonData();
         expect(jetton_data.adminAddress).toEqualAddress(new_owner.address);
-        console.log('result', result)
+        // console.log('result', result)
     });
 
+    it('admin should be able to mint jettons one time', async() => {
+        const jetton_owner = await blockchain.treasury('jetton_owner');
+        const jwallet_address = await masterContract.getWalletAddress(jetton_owner.address);
+        const initialJettonBalance = await masterContract.getJettonBalance();
+        console.log('initialJettonBalance', initialJettonBalance);
+        const mintResult = await masterContract.sendMint(deployer.getSender(), {
+            toAddress: jwallet_address,
+            jettonAmount: BigInt(process.env.JETTON_SUPPLY!),
+            amount: toNano('0.05'),
+            queryId: 0,
+            value: toNano('0.04')
+        })
+        // console.log('mintResult ', mintResult.transactions);
+        const newJettonBalance = await masterContract.getJettonBalance();
+        // ADDITIONAL MINT ATTEMPT
+        expect(newJettonBalance).toBe(initialJettonBalance + BigInt(process.env.JETTON_SUPPLY!));
+        const additionalMintAttempt = await masterContract.sendMint(deployer.getSender(), {
+            toAddress: jwallet_address,
+            jettonAmount: BigInt(process.env.JETTON_SUPPLY!),
+            amount: toNano('0.05'),
+            queryId: 0,
+            value: toNano('0.04')
+        });
+        expect(additionalMintAttempt.transactions).toHaveTransaction({
+            from: deployer.address,
+            to: masterContract.address,
+            success: false,
+            exitCode: 101
+        })
+    });
+
+    it('not minter admin should not be able to mint jettons', async () => {
+        const non_owner_wallet = await blockchain.treasury('non-owner');
+        const jwallet_address = await masterContract.getWalletAddress(non_owner_wallet.address);
+
+        const mintResult = await masterContract.sendMint(non_owner_wallet.getSender(), {
+            toAddress: jwallet_address,
+            jettonAmount: BigInt(process.env.JETTON_SUPPLY!),
+            amount: toNano('0.05'),
+            queryId: 0,
+            value: toNano('0.04')
+        });
+
+        expect(mintResult.transactions).toHaveTransaction({
+            from: non_owner_wallet.address,
+            to: masterContract.address,
+            success: false,
+            exitCode: 73
+        })
+    })
 });
