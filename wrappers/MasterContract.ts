@@ -40,38 +40,33 @@ export class MasterContract implements Contract {
         });
     }
 
-    async sendMint(provider: ContractProvider, via: Sender, 
-        opts: {
-            toAddress: Address;
-            jettonAmount: bigint;
-            amount: bigint;
-            queryId: number;
-            value: bigint;
+    static mintMessage(from: Address, to: Address, jetton_amount: bigint, forward_ton_amount: bigint, total_ton_amount: bigint, query_id: number | bigint = 0) {
+		const mintMsg = beginCell().storeUint(Op.internal_transfer, 32)
+                                   .storeUint(0, 64)
+                                   .storeCoins(jetton_amount)
+                                   .storeAddress(null)
+                                   .storeAddress(from) // Response addr
+                                   .storeCoins(forward_ton_amount)
+                                   .storeMaybeRef(null)
+                    .endCell();
+
+        return beginCell().storeUint(Op.mint, 32).storeUint(query_id, 64) // op, queryId
+                          .storeAddress(to)
+                          .storeCoins(total_ton_amount)
+                          .storeCoins(jetton_amount)
+                          .storeRef(mintMsg)
+               .endCell();
+    }
+    async sendMint(provider: ContractProvider, via: Sender, to: Address, jetton_amount: bigint, forward_ton_amount: bigint, total_ton_amount: bigint) {
+        if(total_ton_amount <= forward_ton_amount) {
+            throw new Error("Total ton amount should be > forward amount");
         }
-    ) {
         await provider.internal(via, {
-            value: opts.value,
             sendMode: SendMode.PAY_GAS_SEPARATELY,
-            body: beginCell()
-                .storeUint(21, 32)
-                .storeUint(opts.queryId, 64)
-                .storeAddress(opts.toAddress)
-                .storeCoins(opts.amount)
-                .storeRef(
-                    beginCell()
-                        .storeUint(0x178d4519, 32)
-                        .storeUint(opts.queryId, 64)
-                        .storeCoins(opts.jettonAmount)
-                        .storeAddress(this.address)
-                        .storeAddress(this.address)
-                        .storeCoins(0)
-                        .storeUint(0, 1)
-                    .endCell()
-                )
-            .endCell(),
+            body: MasterContract.mintMessage(this.address, to, jetton_amount, forward_ton_amount, total_ton_amount),
+            value: total_ton_amount + toNano('0.015'),
         });
     }
-
     // CHANGE MASTER CONTRACT ADMIN
     static changeAdminMessage(newOwner: Address) {
         return beginCell().storeUint(Op.change_admin, 32).storeUint(0, 64) // op, queryId
