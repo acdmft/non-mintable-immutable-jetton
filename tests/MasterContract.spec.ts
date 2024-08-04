@@ -5,7 +5,7 @@ import '@ton/test-utils';
 import { compile } from '@ton/blueprint';
 import * as dotenv from 'dotenv';
 import { buildMasterContentCell } from '../scripts/jettonContent/onChain';
-import { JettonWallet } from '@ton/ton';
+import { JettonWallet } from '../wrappers/JettonWallet';
 dotenv.config();
 
 describe('MasterContract', () => {
@@ -68,7 +68,7 @@ describe('MasterContract', () => {
         expect(jetton_data.walletCode).toEqualCell(jettonWalletCode);
     });
 
-    it('should allow to change admin address', async () => {
+    it('should allow to admin to change admin', async () => {
         const new_owner = await blockchain.treasury('new_owner');
         const result = await masterContract.sendChangeAdmin(deployer.getSender(), new_owner.address);
         const jetton_data = await masterContract.getJettonData();
@@ -77,28 +77,32 @@ describe('MasterContract', () => {
     });
 
     it('admin should be able to mint jettons one time', async() => {
-        const jetton_owner = await blockchain.treasury('jetton_owner');
-        const jwallet_address = await masterContract.getWalletAddress(jetton_owner.address);
+        const jwallet_address = await masterContract.getWalletAddress(deployer.address);
+        const deployerJettonWallet = blockchain.openContract(JettonWallet.createFromAddress(jwallet_address))
         const initialJettonBalance = await masterContract.getJettonBalance();
-        console.log('initialJettonBalance', initialJettonBalance);
-        const mintResult = await masterContract.sendMint(deployer.getSender(), {
-            toAddress: jwallet_address,
-            jettonAmount: BigInt(process.env.JETTON_SUPPLY!),
-            amount: toNano('0.05'),
-            queryId: 0,
+        // console.log('initialJettonBalance', initialJettonBalance);
+        const mintResult = await masterContract.sendMint(deployer.getSender(),              
+            deployer.address,
+            BigInt(process.env.JETTON_SUPPLY!),
+            toNano('0.01'),
+            toNano('0.04')
+    )
+        expect(mintResult.transactions).toHaveTransaction({
+            from: masterContract.address,
+            to: deployerJettonWallet.address,
+            deploy: true,
             value: toNano('0.04')
         })
         // console.log('mintResult ', mintResult.transactions);
         const newJettonBalance = await masterContract.getJettonBalance();
         // ADDITIONAL MINT ATTEMPT
         expect(newJettonBalance).toBe(initialJettonBalance + BigInt(process.env.JETTON_SUPPLY!));
-        const additionalMintAttempt = await masterContract.sendMint(deployer.getSender(), {
-            toAddress: jwallet_address,
-            jettonAmount: BigInt(process.env.JETTON_SUPPLY!),
-            amount: toNano('0.05'),
-            queryId: 0,
-            value: toNano('0.04')
-        });
+        const additionalMintAttempt = await masterContract.sendMint(deployer.getSender(), 
+            jwallet_address,
+            BigInt(process.env.JETTON_SUPPLY!),
+            toNano('0.01'),
+            toNano('0.04')
+        );
         expect(additionalMintAttempt.transactions).toHaveTransaction({
             from: deployer.address,
             to: masterContract.address,
@@ -111,13 +115,12 @@ describe('MasterContract', () => {
         const non_owner_wallet = await blockchain.treasury('non-owner');
         const jwallet_address = await masterContract.getWalletAddress(non_owner_wallet.address);
 
-        const mintResult = await masterContract.sendMint(non_owner_wallet.getSender(), {
-            toAddress: jwallet_address,
-            jettonAmount: BigInt(process.env.JETTON_SUPPLY!),
-            amount: toNano('0.05'),
-            queryId: 0,
-            value: toNano('0.04')
-        });
+        const mintResult = await masterContract.sendMint(non_owner_wallet.getSender(),
+            jwallet_address,
+            BigInt(process.env.JETTON_SUPPLY!),
+            toNano('0.01'),
+            toNano('0.04')
+         );
 
         expect(mintResult.transactions).toHaveTransaction({
             from: non_owner_wallet.address,
